@@ -1,12 +1,14 @@
 package com.temain.printersbook;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.FileHandler;
 import java.util.logging.Formatter;
 import java.util.logging.LogRecord;
@@ -19,6 +21,7 @@ import com.temain.model.entities.Events;
 import com.temain.model.entities.Podrs;
 import com.temain.model.entities.Printers;
 import com.temain.model.util.AuthenticateUtil;
+import com.temain.model.util.HibernateUtil;
 import com.vaadin.annotations.Theme;
 import com.vaadin.annotations.VaadinServletConfiguration;
 import com.vaadin.data.Item;
@@ -34,10 +37,7 @@ import com.vaadin.event.FieldEvents.FocusListener;
 import com.vaadin.event.FieldEvents.TextChangeEvent;
 import com.vaadin.event.FieldEvents.TextChangeListener;
 import com.vaadin.event.ShortcutAction.KeyCode;
-import com.vaadin.server.Page;
-import com.vaadin.server.ThemeResource;
-import com.vaadin.server.VaadinRequest;
-import com.vaadin.server.VaadinServlet;
+import com.vaadin.server.*;
 import com.vaadin.shared.ui.MarginInfo;
 import com.vaadin.ui.AbstractSelect.ItemCaptionMode;
 import com.vaadin.ui.AbstractSelect.NewItemHandler;
@@ -66,6 +66,12 @@ import com.vaadin.ui.VerticalLayout;
 import com.vaadin.ui.Window;
 import com.vaadin.ui.themes.Reindeer;
 import com.vaadin.ui.themes.Runo;
+import javafx.application.Application;
+import net.sf.jasperreports.engine.JRException;
+import net.sf.jasperreports.engine.JasperRunManager;
+import org.hibernate.Session;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
 
 @SuppressWarnings("serial")
 @Theme("mytheme")
@@ -84,6 +90,7 @@ public class MainForm extends UI {
 	private VerticalLayout eventsLayout = new VerticalLayout();
 	private VerticalLayout podrsLayout = new VerticalLayout();
 	private VerticalLayout helloLayout = new VerticalLayout();
+    private FormLayout reportLayout = new FormLayout();
 	private Table events = new Table();
 	private Table printers = new Table();
 	private Table podrsTable = new Table();
@@ -106,6 +113,10 @@ public class MainForm extends UI {
     private Button addNewPodrButton = new Button("Добавить");
     private Button removePodrButton = new Button("Удалить");
     private Button editPodrButton = new Button("Редактировать");
+
+    private Button reportButton = new Button("Показать отчет");
+    private Button report2Button = new Button("Показать отчет");
+    private ComboBox reportPodrs;
     
     private IndexedContainer container = createPrintersDataSource();   
     private IndexedContainer eventsContainer = createEventsDataSource();
@@ -128,6 +139,7 @@ public class MainForm extends UI {
 		initAddEditRemoveEventsButtons();
 		initPodrsTable();
 		initAddEditRemovePodrsButons();
+        initReportLayout();
 	}
 
 	private void initLoginForm(){
@@ -260,6 +272,8 @@ public class MainForm extends UI {
 	    tabSheet.getTab(1).setIcon(new ThemeResource("pics/history.ico"));
 	    tabSheet.addTab(podrsLayout, "Подразделения");
 	    tabSheet.getTab(2).setIcon(new ThemeResource("pics/organisation.png"));
+        tabSheet.addTab(reportLayout, "Отчеты");
+        tabSheet.getTab(3).setIcon(new ThemeResource("pics/report.png"));
 	    tabSheet.setSizeFull();	
 	    tabSheet.setVisible(false);
 	    
@@ -616,15 +630,15 @@ public class MainForm extends UI {
 	}
 
 	private void initSearch() {
-		  searchField.setInputPrompt("Введите строку поиска...");
-		  searchField.setTextChangeEventMode(TextChangeEventMode.LAZY);
-		  searchField.addTextChangeListener(new TextChangeListener() {
+		searchField.setInputPrompt("Введите строку поиска...");
+		searchField.setTextChangeEventMode(TextChangeEventMode.LAZY);
+		searchField.addTextChangeListener(new TextChangeListener() {
 			  
 		       public void textChange(final TextChangeEvent event) {
-		            container.removeAllContainerFilters();
-		            container.addContainerFilter(new PrinterFilter(event.getText()));
-		       }
-		  });
+		          container.removeAllContainerFilters();
+		          container.addContainerFilter(new PrinterFilter(event.getText()));
+	           }
+		});
 	}	
 	
 	private void initAddSaveRemoveButtons(){
@@ -692,10 +706,14 @@ public class MainForm extends UI {
 					    
 		            	if(itemPrinterId != null){	
 		            		//update record
+                            String itemInvent = item.getItemProperty("invent").getValue().toString();
+                            String itemModel = item.getItemProperty("model").getValue().toString();
 			            	Integer printerId = Integer.parseInt(itemPrinterId.toString());			            	            	
 			            	
 						    Printers printer = Factory.getInstance().getPrintersDAO().getPrinterById(printerId);
-						    printer.setPodrs(newPodr);				  
+                            printer.setInvent(itemInvent);
+                            printer.setModel(itemModel);
+                            printer.setPodrs(newPodr);
 						    Factory.getInstance().getPrintersDAO().updatePrinter(printer);
 		            	}else{
 		            		//add new record
@@ -931,7 +949,13 @@ public class MainForm extends UI {
 						eventDiscription.setValue(itemDescription.toString());
 						eventDiscription.setWidth("300px");
 						final PopupDateField eventDate = new PopupDateField("Дата:");
-						eventDate.setValue(java.sql.Date.valueOf(itemDate.toString()));
+                        eventDate.setDateFormat("dd.MM.yyyy");
+                        SimpleDateFormat textFormat = new SimpleDateFormat("dd.MM.yyyy");
+                        try {
+                            eventDate.setValue(textFormat.parse(itemDate.toString()));
+                        }catch(ParseException e){
+                            eventDate.setValue(new Date());
+                        }
 						eventDate.setWidth("300px");
 						
 						HorizontalLayout buttonLayout = new HorizontalLayout();
@@ -960,7 +984,7 @@ public class MainForm extends UI {
 											Integer.parseInt(eventId.toString()));
 									ev.setDescription(description);
 									
-									DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+									DateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
 					                //to convert Date to String, use format method of SimpleDateFormat class.
 					                String strDate = dateFormat.format(date);
 									ev.setDate(strDate);
@@ -1042,7 +1066,6 @@ public class MainForm extends UI {
 					confirmLayout.setComponentAlignment(buttonLayout, Alignment.MIDDLE_CENTER);
 					
 					window.setContent(confirmLayout);
-					
 					
 					cancelEventButton.addClickListener(new ClickListener() {
 						
@@ -1432,6 +1455,161 @@ public class MainForm extends UI {
 		}
 		return container;
 	}
+
+    private void initReportLayout(){
+        Label lb1 = new Label("Отчет №1: по подразделению");
+        List<Podrs> podrs = Factory.getInstance().getPodrsDAO().getAllPodrs();
+        podrsContainerCmb = new BeanItemContainer<Podrs>(Podrs.class ,podrs);
+        reportPodrs = new ComboBox("Подразделение:", podrsContainerCmb);
+        reportPodrs.setItemCaptionMode(ItemCaptionMode.PROPERTY);
+        reportPodrs.setItemCaptionPropertyId("title");
+        reportPodrs.setNullSelectionAllowed(false);
+        reportPodrs.setInputPrompt("Выберите подразделение...");
+        reportPodrs.setRequiredError("Необходимо указать подразделение.");
+        reportPodrs.setImmediate(true);
+        reportPodrs.setWidth("100%");
+
+        HorizontalLayout hLayout = new HorizontalLayout();
+        hLayout.addComponent(reportButton);
+        hLayout.setWidth("100%");
+        hLayout.setComponentAlignment(reportButton, Alignment.MIDDLE_CENTER);
+
+        reportLayout.addComponent(lb1);
+        reportLayout.addComponent(reportPodrs);
+        reportLayout.addComponent(hLayout);
+        reportLayout.setComponentAlignment(reportPodrs, Alignment.TOP_CENTER);
+        //reportLayout.setVisible(false);
+        reportLayout.setMargin(true);
+
+        reportButton.addClickListener(new ClickListener() {
+            @Override
+            public void buttonClick(ClickEvent event) {
+                if(reportPodrs.getValue() != null) {
+                    showReport1(((Podrs) reportPodrs.getValue()).getId());
+                }
+            }
+        });
+
+        final PopupDateField startDate = new PopupDateField("C:");
+        startDate.setInputPrompt("Выберите дату...");
+        startDate.setWidth("300px");
+
+        final PopupDateField endDate = new PopupDateField("По:");
+        endDate.setInputPrompt("Выберите дату...");
+        endDate.setWidth("300px");
+
+        HorizontalLayout hLayout2 = new HorizontalLayout();
+        hLayout2.addComponent(report2Button);
+        hLayout2.setWidth("100%");
+        hLayout2.setComponentAlignment(report2Button, Alignment.MIDDLE_CENTER);
+
+        Label lb2 = new Label("Отчет №2: по всем подразделениям");
+        reportLayout.addComponent(lb2);
+        reportLayout.addComponent(startDate);
+        reportLayout.addComponent(endDate);
+        reportLayout.addComponent(hLayout2);
+
+        report2Button.addClickListener(new ClickListener() {
+            @Override
+            public void buttonClick(ClickEvent event) {
+                if(startDate.getValue() != null && endDate.getValue() != null) {
+                    showReport2(startDate.getValue(), endDate.getValue());
+                }
+            }
+        });
+    }
+
+    private void showReport1(final int podr_id){
+        try {
+            StreamResource.StreamSource source = new StreamResource.StreamSource() {
+
+                public InputStream getStream() {
+                    byte[] b = null;
+                    try {
+                        HashMap map = new HashMap();
+                        map.put("dt", new Date());
+                        map.put("podr_id", podr_id);
+
+                        Session session = HibernateUtil.getSessionFactory().openSession();
+                        SessionFactoryImplementor sessionFactoryImplementation = (SessionFactoryImplementor) session.getSessionFactory();
+                        ConnectionProvider connectionProvider = sessionFactoryImplementation.getConnectionProvider();
+                        Connection connection = null;
+                        try {
+                            connection = connectionProvider.getConnection();
+                        } catch (SQLException ex) {
+                            ex.printStackTrace();
+                        }
+
+                        b = JasperRunManager.runReportToPdf(getClass().getClassLoader().getResourceAsStream("reports/report1.jasper"), map, connection);
+                    } catch (JRException ex) {
+                        //Logger.getLogger(TokenForm.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                    return new ByteArrayInputStream(b);
+                }
+            };
+
+            StreamResource resource = new StreamResource(source, "report1.pdf");
+            resource.setMIMEType("application/pdf");
+
+            viewDocument(resource);
+        } catch (Exception ex) {
+            //Logger.getLogger(TokenForm.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private void showReport2(final Date dt1, final Date dt2){
+        try {
+            StreamResource.StreamSource source = new StreamResource.StreamSource() {
+
+                public InputStream getStream() {
+                    byte[] b = null;
+                    try {
+                        HashMap map = new HashMap();
+                        map.put("dt1", dt1);
+                        map.put("dt2", dt2);
+
+                        Session session = HibernateUtil.getSessionFactory().openSession();
+                        SessionFactoryImplementor sessionFactoryImplementation = (SessionFactoryImplementor) session.getSessionFactory();
+                        ConnectionProvider connectionProvider = sessionFactoryImplementation.getConnectionProvider();
+                        Connection connection = null;
+                        try {
+                            connection = connectionProvider.getConnection();
+                        } catch (SQLException ex) {
+                            ex.printStackTrace();
+                        }
+
+                        b = JasperRunManager.runReportToPdf(getClass().getClassLoader().getResourceAsStream("reports/report2.jasper"), map, connection);
+                    } catch (JRException ex) {
+                        //Logger.getLogger(TokenForm.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                    return new ByteArrayInputStream(b);
+                }
+            };
+
+            StreamResource resource = new StreamResource(source, "report2.pdf");
+            resource.setMIMEType("application/pdf");
+
+            viewDocument(resource);
+        } catch (Exception ex) {
+            //Logger.getLogger(TokenForm.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private void viewDocument(StreamResource resource)
+    {
+        Embedded c = new Embedded("", resource);
+        c.setSizeFull();
+        c.setType(Embedded.TYPE_BROWSER);
+
+        Window window = new Window("View PDF", c);
+        window.setCaption("View PDF");
+        window.getContent().setSizeFull();
+        window.setModal(true);
+        window.setWidth("90%");
+        window.setHeight("90%");
+
+        this.addWindow(window);
+    }
 			
 	private void initLogger(){
 		try {

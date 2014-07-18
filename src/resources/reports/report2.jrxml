@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="report name" pageWidth="595" pageHeight="842" columnWidth="535" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="aa0cbaa5-1364-4820-ba64-3ab0ef5140ee">
+	<property name="ireport.zoom" value="2.0"/>
+	<property name="ireport.x" value="43"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="dt1" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="dt2" class="java.util.Date"/>
+	<queryString>
+		<![CDATA[SELECT p.title as podr, COUNT(ev.description) as cnt from podrs p
+LEFT JOIN printers pr on p.id=pr.podrid
+LEFT JOIN events ev on pr.id=ev.printerid
+WHERE to_date(ev.date, 'DD.MM.YYYY') > '10.04.2001' and to_date(ev.date, 'DD.MM.YYYY') <= '10.04.2015'
+and ev.description NOT LIKE '%емонт%'
+GROUP BY p.title
+ORDER BY p.title
+
+
+]]>
+	</queryString>
+	<field name="podr" class="java.lang.String"/>
+	<field name="cnt" class="java.lang.Long"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="35" splitType="Stretch">
+			<textField>
+				<reportElement x="32" y="0" width="485" height="35" uuid="09557ab6-27fa-4929-9676-278cc6b0fe05"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="true" pdfFontName="/usr/local/java/jdk1.7.0_25/jre/lib/fonts/times.ttf" pdfEncoding="Cp1251" isPdfEmbedded="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Расход картриджей с " + new SimpleDateFormat("dd.MM.yyyy").format($P{dt1}) + "г. по " + new SimpleDateFormat("dd.MM.yyyy").format($P{dt2}) + "г." ]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="39" splitType="Stretch">
+			<staticText>
+				<reportElement x="32" y="19" width="407" height="20" uuid="fde2412a-e191-4bcd-8d3d-1031af07dc30"/>
+				<box leftPadding="5">
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true" pdfFontName="/usr/local/java/jdk1.7.0_25/jre/lib/fonts/times.ttf" pdfEncoding="Cp1251" isPdfEmbedded="true"/>
+				</textElement>
+				<text><![CDATA[Подразделение]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="439" y="19" width="78" height="20" uuid="d0eafbd2-209c-4aa0-be57-0289bc0c57f8"/>
+				<box leftPadding="5">
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true" pdfFontName="/usr/local/java/jdk1.7.0_25/jre/lib/fonts/times.ttf" pdfEncoding="Cp1251" isPdfEmbedded="true"/>
+				</textElement>
+				<text><![CDATA[Количество]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField pattern="">
+				<reportElement x="32" y="0" width="407" height="20" uuid="3794458a-1c96-4f09-8f20-c70c29c484bf"/>
+				<box leftPadding="5">
+					<pen lineWidth="1.0" lineStyle="Solid"/>
+					<topPen lineWidth="1.0" lineStyle="Solid"/>
+					<leftPen lineStyle="Solid"/>
+					<bottomPen lineStyle="Solid"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font pdfFontName="/usr/local/java/jdk1.7.0_25/jre/lib/fonts/times.ttf" pdfEncoding="Cp1251" isPdfEmbedded="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{podr}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="439" y="0" width="78" height="20" uuid="493c2259-d017-4aba-9701-61bf01cd9091"/>
+				<box leftPadding="5">
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font pdfFontName="/usr/local/java/jdk1.7.0_25/jre/lib/fonts/times.ttf" pdfEncoding="Cp1251" isPdfEmbedded="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cnt}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="6" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="2" splitType="Stretch"/>
+	</summary>
+</jasperReport>
