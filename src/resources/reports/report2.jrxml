@@ -11,13 +11,10 @@
 		<![CDATA[SELECT p.title as podr, COUNT(ev.description) as cnt from podrs p
 LEFT JOIN printers pr on p.id=pr.podrid
 LEFT JOIN events ev on pr.id=ev.printerid
-WHERE to_date(ev.date, 'DD.MM.YYYY') > '10.04.2001' and to_date(ev.date, 'DD.MM.YYYY') <= '10.04.2015'
+WHERE to_date(ev.date, 'DD.MM.YYYY') >= $P{dt1} and to_date(ev.date, 'DD.MM.YYYY') <= $P{dt2}
 and ev.description NOT LIKE '%емонт%'
 GROUP BY p.title
-ORDER BY p.title
-
-
-]]>
+ORDER BY p.title]]>
 	</queryString>
 	<field name="podr" class="java.lang.String"/>
 	<field name="cnt" class="java.lang.Long"/>
@@ -31,7 +28,7 @@ ORDER BY p.title
 				<textElement textAlignment="Center" verticalAlignment="Middle">
 					<font size="14" isBold="true" pdfFontName="/usr/local/java/jdk1.7.0_25/jre/lib/fonts/times.ttf" pdfEncoding="Cp1251" isPdfEmbedded="true"/>
 				</textElement>
-				<textFieldExpression><![CDATA["Расход картриджей с " + new SimpleDateFormat("dd.MM.yyyy").format($P{dt1}) + "г. по " + new SimpleDateFormat("dd.MM.yyyy").format($P{dt2}) + "г." ]]></textFieldExpression>
+				<textFieldExpression><![CDATA["Расход картриджей с " + new SimpleDateFormat("dd.MM.yyyy").format($P{dt1}) + "г. по " + new SimpleDateFormat("dd.MM.yyyy").format($P{dt2}) + "г."]]></textFieldExpression>
 			</textField>
 		</band>
 	</title>

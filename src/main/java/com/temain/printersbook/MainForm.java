@@ -1,10 +1,10 @@
 package com.temain.printersbook;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -68,7 +68,11 @@ import com.vaadin.ui.themes.Reindeer;
 import com.vaadin.ui.themes.Runo;
 import javafx.application.Application;
 import net.sf.jasperreports.engine.JRException;
+import net.sf.jasperreports.engine.JRExporterParameter;
+import net.sf.jasperreports.engine.JasperFillManager;
 import net.sf.jasperreports.engine.JasperRunManager;
+import net.sf.jasperreports.engine.export.JRXlsExporter;
+import net.sf.jasperreports.engine.export.JRXlsExporterParameter;
 import org.hibernate.Session;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
@@ -114,8 +118,12 @@ public class MainForm extends UI {
     private Button removePodrButton = new Button("Удалить");
     private Button editPodrButton = new Button("Редактировать");
 
+    private PopupDateField startDate = new PopupDateField("C:");
+    private PopupDateField endDate = new PopupDateField("По:");
+
     private Button reportButton = new Button("Показать отчет");
     private Button report2Button = new Button("Показать отчет");
+    private Button report2ButtonXLS = new Button("В Excel");
     private ComboBox reportPodrs;
     
     private IndexedContainer container = createPrintersDataSource();   
@@ -1500,24 +1508,89 @@ public class MainForm extends UI {
 
         HorizontalLayout hLayout2 = new HorizontalLayout();
         hLayout2.addComponent(report2Button);
+        HorizontalLayout hLayout3 = new HorizontalLayout();
+        hLayout3.addComponent(report2ButtonXLS);
         hLayout2.setWidth("100%");
         hLayout2.setComponentAlignment(report2Button, Alignment.MIDDLE_CENTER);
+        hLayout3.setWidth("100%");
+        hLayout3.setComponentAlignment(report2ButtonXLS, Alignment.MIDDLE_CENTER);
 
         Label lb2 = new Label("Отчет №2: по всем подразделениям");
         reportLayout.addComponent(lb2);
         reportLayout.addComponent(startDate);
         reportLayout.addComponent(endDate);
         reportLayout.addComponent(hLayout2);
+        reportLayout.addComponent(hLayout3);
 
         report2Button.addClickListener(new ClickListener() {
             @Override
             public void buttonClick(ClickEvent event) {
                 if(startDate.getValue() != null && endDate.getValue() != null) {
-                    showReport2(startDate.getValue(), endDate.getValue());
+                    showReport2PDF(startDate.getValue(), endDate.getValue());
                 }
             }
         });
+
+
+        FileDownloader downloader = new FileDownloader(new StreamResource(new StreamResource.StreamSource() {
+            @Override
+            public InputStream getStream() {
+                File file = new File("/home/jboss/report2.csv");
+                try {
+                    //file.mkdirs();
+                    log.info("File name: " + file.getName());
+                    log.severe("File name: " + file.getName());
+                    log.severe("Creating file...");
+                    if(file.createNewFile()){
+                        log.severe("File created -----------------------");
+                    }
+                    //clear file
+                    PrintWriter writer = new PrintWriter(file);
+                    writer.print("");
+                    writer.close();
+
+                    if(startDate.getValue() != null && endDate.getValue() != null) {
+                        return generateReport2XLS(startDate.getValue(), endDate.getValue(), file);
+                    }
+                    return null;
+                } catch(FileNotFoundException nfd){
+                    nfd.printStackTrace();
+                } catch(IOException io){
+                    io.printStackTrace();
+                }
+                return null;
+            }
+        }, "report2.csv"));
+        downloader.extend(report2ButtonXLS);
+
+        //StreamResource sr = getFileStream("/tmp/report2.csv");
+        //FileDownloader fileDownloader = new FileDownloader(sr);
+        //fileDownloader.extend(report2ButtonXLS);
     }
+
+//    private StreamResource getFileStream(final String fileName) {
+//        StreamResource.StreamSource source = new StreamResource.StreamSource() {
+//
+//            public InputStream getStream() {
+//                File file = new File(fileName);
+//                try {
+//                    if(startDate.getValue() != null && endDate.getValue() != null) {
+//                        showReport2XLS(startDate.getValue(), endDate.getValue());
+//                    }
+//                    return new FileInputStream(file);
+//                } catch(FileNotFoundException nfd){
+//                    nfd.printStackTrace();
+//                }
+//                return null;
+//
+//            }
+//        };
+//
+//        StreamResource resource = new StreamResource(source, "report2.csv");
+//        resource.setMIMEType("text/csv");
+//
+//        return resource;
+//    }
 
     private void showReport1(final int podr_id){
         try {
@@ -1557,7 +1630,7 @@ public class MainForm extends UI {
         }
     }
 
-    private void showReport2(final Date dt1, final Date dt2){
+    private void showReport2PDF(final Date dt1, final Date dt2){
         try {
             StreamResource.StreamSource source = new StreamResource.StreamSource() {
 
@@ -1595,14 +1668,74 @@ public class MainForm extends UI {
         }
     }
 
+    private InputStream generateReport2XLS(final Date dt1, final Date dt2, final File file){
+        try {
+            Session session = HibernateUtil.getSessionFactory().openSession();
+            SessionFactoryImplementor sessionFactoryImplementation = (SessionFactoryImplementor) session.getSessionFactory();
+            ConnectionProvider connectionProvider = sessionFactoryImplementation.getConnectionProvider();
+            Connection connection = null;
+            try {
+                connection = connectionProvider.getConnection();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+
+            Statement stmt = null;
+            SimpleDateFormat df = new SimpleDateFormat("MM.dd.yyyy");
+            String query = "SELECT p.title as podr, COUNT(ev.description) as cnt from podrs p " +
+                           "LEFT JOIN printers pr on p.id=pr.podrid " +
+                           "LEFT JOIN events ev on pr.id=ev.printerid " +
+                           "WHERE to_date(ev.date, 'DD.MM.YYYY') >= '" + df.format(dt1) + "' and to_date(ev.date, 'DD.MM.YYYY') <= '" + df.format(dt2) + "' and ev.description NOT LIKE '%емонт%' " +
+                           "GROUP BY p.title " +
+                           "ORDER BY p.title";
+            log.severe(query);
+            stmt = connection.createStatement();
+            ResultSet rs = stmt.executeQuery(query);
+
+            try{
+                PrintWriter writer = new PrintWriter(file, "Cp1252");
+                while (rs.next()) {
+                    String podr = rs.getString("podr");
+                    int cnt = rs.getInt("cnt");
+                    //log.severe(podr + ";" + cnt);
+                    writer.println(podr + ";" + cnt);
+                }
+                writer.close();
+                return new FileInputStream(file);
+            } catch (IOException io){
+                io.printStackTrace();
+            }
+
+//            StreamResource.StreamSource source = new StreamResource.StreamSource() {
+//                @Override
+//                public InputStream getStream() {
+//                    try {
+//                        return new FileInputStream(file);
+//                    } catch(FileNotFoundException nfd){
+//                        nfd.printStackTrace();
+//                    }
+//                    return null;
+//                }
+//            };
+//
+//            StreamResource resource = new StreamResource(source, "report2.csv");
+//            resource.setMIMEType("text/csv");
+//
+//            return resource;
+        }catch (SQLException ex){
+           ex.printStackTrace();
+        }
+        return null;
+    }
+
     private void viewDocument(StreamResource resource)
     {
         Embedded c = new Embedded("", resource);
         c.setSizeFull();
         c.setType(Embedded.TYPE_BROWSER);
 
-        Window window = new Window("View PDF", c);
-        window.setCaption("View PDF");
+        Window window = new Window("Отчет", c);
+        window.setCaption("Отчет");
         window.getContent().setSizeFull();
         window.setModal(true);
         window.setWidth("90%");
