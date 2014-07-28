@@ -1693,7 +1693,7 @@ public class MainForm extends UI {
             ResultSet rs = stmt.executeQuery(query);
 
             try{
-                PrintWriter writer = new PrintWriter(file, "Cp1252");
+                PrintWriter writer = new PrintWriter(file, "windows-1251");
                 while (rs.next()) {
                     String podr = rs.getString("podr");
                     int cnt = rs.getInt("cnt");
